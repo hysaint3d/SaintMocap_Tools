@@ -1,0 +1,86 @@
+# MobuCharacter Toolkit 使用說明 / User Manual
+
+本工具是 MotionBuilder 中的角色管理與骨架標準化利器，旨在簡化角色化（Characterize）流程並統一骨架命名規範。
+
+This toolkit is an essential character management and skeleton standardization utility in MotionBuilder, designed to simplify the characterization workflow and unify bone naming conventions.
+
+---
+
+## 1. 核心功能模組 / Key Functional Modules
+
+### 🦴 生成與對接標準骨架 (Skeleton Standardization)
+* **功能 / Purpose**：一鍵生成標準 T-Pose 骨架，或將現有模型對接到標準槽位。
+  * Generate a standard T-pose skeleton with a single click, or map existing models to standard skeleton slots.  
+* **支援規範 (內建與模板) / Supported Standards (Built-in & Templates)**：
+  * **DCC 軟體 (DCC Apps)**：3ds Max (Biped), Blender (Rigify/AutoRigPro), Maya (AdvancedSkeleton)。
+  * **遊戲引擎 (Game Engines)**：UE Mannequin, UE MetaHuman, Unity Humanoid。
+  * **虛擬偶像/動漫 (Virtual Avatars/Anime)**：VRoid, MMD (Japanese Game Standard)。
+  * **硬體與掃描 (Hardware & Scanning)**：AccuRig (Reallusion), VMC (VRM Standard)。
+  * **動捕標準 (Mocap Standard)**：Standard HIK。
+* **應用場景 / Use Case**：無論你的模型是從哪裡來的，只要選擇對應的模板，就能瞬間完成骨架映射與角色化。
+  * No matter where your 3D models originate, simply select the matching template to instantly complete skeleton mapping and characterization.
+
+### 🤖 自動角色化 (Auto Characterize)
+* **Smart Detect (智慧偵測)**：自動掃描場景中的骨架，利用模糊匹配算法將骨頭填入 HIK 槽位。
+  * Automatically scans the skeleton in the scene and maps bones to HIK slots using fuzzy matching algorithms.
+* **Templates (模板)**：支援從 `Templates` 資料夾讀取 JSON 檔案，精確對應特定格式的角色（如 Mixamo, VRoid）。
+  * Reads JSON files from the `Templates` folder to precisely target characters with specific naming conventions (e.g. Mixamo, VRoid).
+* **一鍵完成 (One-Click Setup)**：填入名稱後直接點擊 `Characterize`，系統會自動建立 Character 資源並鎖定。
+  * Input a name and click `Characterize`; the system automatically creates a locked Character asset.
+
+### 🛠 骨架工具 (Skeleton Tools)
+* **Rename to Standard**：根據 HIK 定義，將選取的骨頭重新命名為標準格式。
+  * Rename selected bones to standard formats based on HIK definitions.
+* **Fuzzy / Aggressive Matching**：針對命名極度混亂的骨架，開啟進階匹配模式。
+  * Enables aggressive fuzzy matching for extremely chaotic bone nomenclature.
+
+---
+
+## 2. 操作流程建議 / Recommended Workflow
+
+### 流程 A：處理全新導入的模型 / Workflow A: Standardizing Imported Models
+1. 選擇模型所有骨頭。
+   * Select all bones of the model.
+2. 點擊 **Smart Detect**，檢查槽位是否正確。
+   * Click **Smart Detect** and verify slot allocations.
+3. 點擊 **Characterize** 完成。
+   * Click **Characterize** to complete.
+
+### 流程 B：建立全新的同步骨架 (用於 VMC) / Workflow B: Creating VMC Targets
+1. 在 `Mode` 選擇 `VMC`。
+   * Select `VMC` mode.
+2. 點擊 **Generate Skeleton**。
+   * Click **Generate Skeleton**.
+3. 使用該骨架作為你的資料傳輸目標。
+   * Use this generated skeleton as your motion streaming target.
+
+---
+
+## 3. 模板系統 (Templates)
+
+工具會自動讀取腳本路徑下 `Templates/*.json`。
+* 你可以自行增加 JSON 檔案，格式為：`{"HIK_Slot_Name": "Bone_Name_In_Scene"}`。
+* 這樣對於特定工作室的內部規範模型，可以達到 100% 的自動對接。
+
+The toolkit automatically reads `Templates/*.json` in the script path.
+* You can add custom JSON files using the format: `{"HIK_Slot_Name": "Bone_Name_In_Scene"}`.
+* This allows for 100% automated mapping for proprietary studio bone setups.
+
+---
+
+## 4. 常見問答 (Q&A)
+
+**Q: 為什麼智慧偵測抓不到我的手部骨頭？**  
+A: 請確保你的手部骨架包含明顯的關鍵字（如 `Hand`, `Wrist`, `Palm`）。如果命名太過簡略，建議先使用 **Tools** 進行手動映射或修改 JSON 模板。  
+* **Q: Why does Smart Detect fail to find my hand bones?**  
+* A: Ensure bone names contain keywords like `Hand`, `Wrist`, or `Palm`. For overly simplified names, map them manually using **Tools** or customize a JSON template.
+
+**Q: 產生的骨架比例不對怎麼辦？**  
+A: 生成後，你可以直接縮放 Root 節點。工具內建的 `BASE_H` (170cm) 是為了確保 retargeting 時的預設比例最接近標準。  
+* **Q: What if the generated skeleton scale is incorrect?**  
+* A: You can scale the Root node directly. The built-in `BASE_H` (170cm) ensures default retargeting scales align with standard human proportions.
+
+---
+**由 小聖腦絲 × Antigravity 協作記錄**  
+**Collaboratively recorded by Saint & Antigravity**  
+[小聖腦絲的粉專 / Saint's Facebook Page](https://www.facebook.com/hysaint3d.mocap)

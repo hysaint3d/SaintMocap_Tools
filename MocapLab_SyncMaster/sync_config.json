@@ -1,0 +1,30 @@
+{
+  "take_name": "Take",
+  "motive": {
+    "ip": "10.1.1.1",
+    "port": "1510",
+    "enabled": true
+  },
+  "mobu": {
+    "ip": "127.0.0.1",
+    "port": "9000",
+    "enabled": false
+  },
+  "ue5": {
+    "ip": "127.0.0.1",
+    "port": "30010",
+    "enabled": false
+  },
+  "warudo": {
+    "ip": "127.0.0.1",
+    "port": "19190",
+    "enabled": false
+  },
+  "obs": {
+    "ip": "10.1.1.103",
+    "port": "4455",
+    "enabled": true,
+    "password": "03807628",
+    "scene": "4view-UE-warudo-ndi"
+  }
+}

@@ -1,0 +1,308 @@
+{
+    "DisplayName": "Rigify (Blender)",
+    "Description": "Blender Rigify (DEF bones) naming convention.",
+    "ReferenceLink": {
+        "Name": "root",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "HipsLink": {
+        "Name": "DEF-spine",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "SpineLink": {
+        "Name": "DEF-spine.001",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "Spine1Link": {
+        "Name": "DEF-spine.002",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "Spine2Link": {
+        "Name": "DEF-spine.003",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "NeckLink": {
+        "Name": "DEF-neck",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "HeadLink": {
+        "Name": "DEF-head",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftShoulderLink": {
+        "Name": "DEF-shoulder.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftArmLink": {
+        "Name": "DEF-upper_arm.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftForeArmLink": {
+        "Name": "DEF-forearm.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandLink": {
+        "Name": "DEF-hand.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightShoulderLink": {
+        "Name": "DEF-shoulder.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightArmLink": {
+        "Name": "DEF-upper_arm.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightForeArmLink": {
+        "Name": "DEF-forearm.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightHandLink": {
+        "Name": "DEF-hand.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftUpLegLink": {
+        "Name": "DEF-thigh.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftLegLink": {
+        "Name": "DEF-shin.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftFootLink": {
+        "Name": "DEF-foot.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftToeBaseLink": {
+        "Name": "DEF-toe.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightUpLegLink": {
+        "Name": "DEF-thigh.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightLegLink": {
+        "Name": "DEF-shin.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightFootLink": {
+        "Name": "DEF-foot.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "RightToeBaseLink": {
+        "Name": "DEF-toe.R",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandThumb1Link": {
+        "Name": "DEF-thumb.01.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandThumb2Link": {
+        "Name": "DEF-thumb.02.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandThumb3Link": {
+        "Name": "DEF-thumb.03.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandIndex1Link": {
+        "Name": "DEF-f_index.01.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandIndex2Link": {
+        "Name": "DEF-f_index.02.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandIndex3Link": {
+        "Name": "DEF-f_index.03.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandMiddle1Link": {
+        "Name": "DEF-f_middle.01.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandMiddle2Link": {
+        "Name": "DEF-f_middle.02.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandMiddle3Link": {
+        "Name": "DEF-f_middle.03.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandRing1Link": {
+        "Name": "DEF-f_ring.01.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandRing2Link": {
+        "Name": "DEF-f_ring.02.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandRing3Link": {
+        "Name": "DEF-f_ring.03.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandPinky1Link": {
+        "Name": "DEF-f_pinky.01.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandPinky2Link": {
+        "Name": "DEF-f_pinky.02.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    },
+    "LeftHandPinky3Link": {
+        "Name": "DEF-f_pinky.03.L",
+        "Rotation": [
+            0,
+            0,
+            0
+        ]
+    }
+}

@@ -5,8 +5,8 @@
 
 | Project | Purpose | Version | Install ZIP |
 | --- | --- | --- | --- |
-| [Saint2Mobu](Blender/Saint2Mobu/) | Blender and MotionBuilder: bidirectional FBX Send / Update | 0.4.0 Beta | [Download](Blender/Saint2Mobu/dist/SaintMocap_Send2Mobu-0.4.0.zip?raw=true) |
-| [SaintMocap Live Link Receiver](Blender/BlenderLiveLink/) | Receive MotionBuilder Live Link animation in Blender | 0.5.3 Experimental | [Download](Blender/BlenderLiveLink/SaintMocap_LiveLink_Receiver-0.5.3.zip?raw=true) |
+| [Saint2Mobu](Blender/Saint2Mobu/) | Blender and MotionBuilder: bidirectional FBX Send / Update | [0.4.0 Beta 1](https://github.com/hysaint3d/SaintMocap_Tools/releases/tag/saint2mobu-v0.4.0-beta.1) | [Download ZIP](https://github.com/hysaint3d/SaintMocap_Tools/releases/download/saint2mobu-v0.4.0-beta.1/Saint2Mobu-0.4.0-beta.1.zip) |
+| [SaintMocap Live Link Receiver](Blender/BlenderLiveLink/) | Receive MotionBuilder Live Link animation in Blender | [0.5.3 Experimental Beta 1](https://github.com/hysaint3d/SaintMocap_Tools/releases/tag/blender-livelink-v0.5.3-beta.1) | [Download ZIP](https://github.com/hysaint3d/SaintMocap_Tools/releases/download/blender-livelink-v0.5.3-beta.1/SaintMocap_LiveLink_Receiver-0.5.3.zip) |
 
 Install each ZIP separately through Blender 5.2: **Edit > Preferences > Add-ons > Install from Disk**. See each project's README for setup and supported workflows.
 

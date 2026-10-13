@@ -1,0 +1,239 @@
+"""Blender main-thread Sync controller. FBX IO never runs in the native host."""
+import json
+from pathlib import Path
+import shutil
+import time
+import math
+import uuid
+import xml.etree.ElementTree as ET
+import bpy
+from .agent import agent
+from .fbx_io import import_fbx, export_fbx
+
+class Sync:
+    def __init__(self):
+        self.message = 'Ready'
+        self.error = ''
+        self.remote_busy = set()
+        self.pending = None
+        self.session = None
+        self.collections = {}
+        self.last_link = None
+        self.failed = None
+
+    def reset(self):
+        self.__init__()
+
+    def _xml(self, tag, **attributes):
+        return ET.tostring(ET.Element(tag, Version='1.0', **attributes), encoding='unicode')
+
+    def _state(self, link, state):
+        agent.send(link, self._xml('OneClickBusyState', State=state))
+
+    def collection(self, link):
+        name = self.collections.get(link)
+        if name is None: return None
+        try:
+            return name if name.name in bpy.data.collections else None
+        except ReferenceError:
+            return None
+
+    def receive(self, path):
+        request = json.loads(path.read_text(encoding='utf-8-sig'))
+        link = int(request['link'])
+        root = ET.fromstring(request['xml'])
+        if root.tag == 'OneClickBusyState':
+            if root.get('State') == 'Busy':
+                self.remote_busy.add(link)
+                if self.pending and self.pending['link'] == link: self.pending['busy'] = True
+            elif root.get('State') == 'Ready':
+                self.remote_busy.discard(link)
+                if self.pending and self.pending['link'] == link and self.pending['busy']:
+                    self.message = 'MotionBuilder completed the update'
+                    self.pending = None
+            return
+        if root.tag != 'OneClickMotionBuilderSendToDCC':
+            # Unknown control commands are logged, never evaluated as code.
+            return
+        if root.get('Version') != '1.0':
+            raise RuntimeError('Unsupported native message version')
+        if root.get('ObjectAction') not in {'Update', 'Add'}:
+            raise RuntimeError('Unsupported object action: ' + str(root.get('ObjectAction')))
+        if root.get('TargetScene') not in {'New', 'Current'}:
+            raise RuntimeError('Unsupported target scene')
+        source = Path(request.get('cached_fbx', root.get('FbxFilePath', '')))
+        if source.suffix.lower() != '.fbx' or not source.is_file():
+            raise RuntimeError(f'Incoming FBX is missing: {source}')
+        cached = agent.directory / ('received-' + uuid.uuid4().hex + '.fbx')
+        if request.get('cached_fbx'):
+            cached = source
+        else:
+            shutil.copy2(source, cached)
+            request['cached_fbx'] = str(cached)
+            pending = path.with_suffix('.tmp')
+            pending.write_text(json.dumps(request), encoding='utf-8')
+            pending.replace(path)
+        self._state(link, 'Busy')
+        try:
+            collection = self.collection(link)
+            new = root.get('TargetScene') == 'New' or collection is None
+            scope = list(collection.all_objects) if collection is not None else []
+            # New scenes arrive in a dedicated collection; the user's scene is retained.
+            update = not new and root.get('ObjectAction') == 'Update'
+            objects = import_fbx(cached, update=update, scope=scope)
+            if new:
+                collection = bpy.data.collections.new('Send2Mobu - ' + time.strftime('%H%M%S'))
+                bpy.context.scene.collection.children.link(collection)
+                self.collections[link] = collection
+            for obj in objects:
+                if obj.name not in collection.objects:
+                    collection.objects.link(obj)
+                    if obj not in scope:
+                        for owner in list(obj.users_collection):
+                            if owner != collection: owner.objects.unlink(obj)
+            collection['_send2_source_pid'] = next((p['pid'] for p in agent.peers if p['link'] == link), 0)
+            actions = [o.animation_data.action for o in objects if o.animation_data and o.animation_data.action]
+            if new and actions:
+                bpy.context.scene.frame_start = math.floor(min(a.frame_range[0] for a in actions))
+                bpy.context.scene.frame_end = math.ceil(max(a.frame_range[1] for a in actions))
+            self.last_link = link
+            self.message = f'Received {len(objects)} objects from MotionBuilder'
+            self.error = ''
+        finally:
+            try: self._state(link, 'Ready')
+            except RuntimeError: self.error = 'Receive finished; MotionBuilder connection closed'
+
+    def tick(self):
+        state = agent.status()
+        if state not in {'ONLINE', 'CONNECTED'}:
+            return
+        self._session()
+        if self.pending and self.pending['phase'] == 'CONNECT':
+            result = Path(str(self.pending['path']) + '.result')
+            if result.exists():
+                data = json.loads(result.read_text(encoding='utf-8-sig'))
+                pending = self.pending; self.pending = None
+                if data['connected']:
+                    self._queue(data['link'], pending['prepared'], pending['new_scene'])
+                else:
+                    self.error = data['error']
+            elif time.monotonic() - self.pending['started'] > 110:
+                self.error = 'MotionBuilder connection timed out; check its startup dialogs'
+                self.pending = None
+        if self.pending and self.pending['phase'] == 'SEND':
+            result = Path(str(self.pending['path']) + '.result')
+            if result.exists():
+                data = json.loads(result.read_text(encoding='utf-8-sig'))
+                if not data['sent']:
+                    self.error = data['error']; self.pending = None
+            if self.pending and time.monotonic() - self.pending['started'] > 60:
+                self.error = 'No completion from MotionBuilder within 60 seconds. Check Mobu dialogs/connection.'
+                self.pending = None
+        # Receiving in Edit/Pose Mode is postponed, not run in an unsafe context.
+        if bpy.context.mode != 'OBJECT' or bpy.context.window_manager.is_interface_locked:
+            return
+        for path in sorted(agent.directory.glob('in-*.json'))[:8]:
+            try:
+                self.receive(path)
+                path.rename(str(path) + '.done')
+            except Exception as exc:
+                self.error = str(exc)
+                self.failed = Path(str(path) + '.failed')
+                path.rename(self.failed)
+                print('SaintMocap Send2Mobu receive failed:', exc)
+
+    def _session(self):
+        if self.session != agent.directory:
+            self.reset(); self.session = agent.directory
+
+    def _prepare(self, animation, synced=False, link=None):
+        if bpy.context.mode != 'OBJECT':
+            raise RuntimeError('Switch to Object Mode before sending')
+        collection = self.collection(link) if link is not None else None
+        if synced and collection is None:
+            raise RuntimeError('No received collection for this connection; send from Mobu first')
+        objects = list(collection.all_objects) if synced else list(bpy.context.selected_objects)
+        if not objects:
+            raise RuntimeError('Select objects to send, or receive a synced collection first')
+        # Include parents and skin rigs so a selected mesh exports a complete hierarchy.
+        expanded = set(objects)
+        queue = list(objects)
+        while queue:
+            obj = queue.pop()
+            dependencies = [obj.parent] + [m.object for m in obj.modifiers if m.type == 'ARMATURE']
+            for dependency in dependencies:
+                if dependency is not None and dependency not in expanded:
+                    expanded.add(dependency); queue.append(dependency)
+        expanded = list(expanded)
+        if any(obj.name not in bpy.context.view_layer.objects or obj.hide_get() or obj.hide_select for obj in expanded):
+            raise RuntimeError('Unhide and enable selection for the objects/rigs being sent')
+        selected = list(bpy.context.selected_objects)
+        active = bpy.context.view_layer.objects.active
+        names = {obj: obj.name for obj in bpy.data.objects}
+        sources = [obj.get('_send2_source_name', obj.name) for obj in expanded]
+        if len(set(sources)) != len(sources):
+            raise RuntimeError('Duplicate source names in the export selection')
+        token = uuid.uuid4().hex
+        path = agent.directory / ('send-' + token + '.fbx')
+        try:
+            # Export exact original FBX names, even if Blender appended .001.
+            for i, obj in enumerate(names): obj.name = f'__send2_export_{i}__'
+            for obj, name in zip(expanded, sources): obj.name = name
+            for obj in bpy.context.selected_objects: obj.select_set(False)
+            for obj in expanded: obj.select_set(True)
+            export_fbx(path, animation)
+        finally:
+            for i, obj in enumerate(names): obj.name = f'__send2_restore_{i}__'
+            for obj, name in names.items(): obj.name = name
+            for obj in bpy.context.selected_objects: obj.select_set(False)
+            for obj in selected: obj.select_set(True)
+            bpy.context.view_layer.objects.active = active
+        return {'path': path, 'objects': list(expanded), 'sources': sources}
+
+    def _queue(self, link, prepared, new_scene):
+        path = prepared['path']
+        xml = self._xml('OneClickMotionBuilderSend', TargetScene='New' if new_scene else 'Current',
+                        FbxFilePath=str(path), ObjectAction='Update', DCCSenePath=bpy.data.filepath)
+        queued = agent.send(link, xml)
+        collection = self.collection(link)
+        if collection is None or new_scene:
+            collection = bpy.data.collections.new('Send2Mobu - Sent')
+            bpy.context.scene.collection.children.link(collection)
+            self.collections[link] = collection
+        for obj, source in zip(prepared['objects'], prepared['sources']):
+            try:
+                obj['_send2_source_name'] = source
+                if obj.name not in collection.objects: collection.objects.link(obj)
+            except ReferenceError:
+                pass
+        self.pending = {'phase': 'SEND', 'path': queued, 'link': link, 'busy': False, 'started': time.monotonic()}
+        self.last_link = link; self.error = ''; self.message = 'Sending to MotionBuilder...'
+
+    def send(self, link, new_scene=False, animation=True, synced=False):
+        self._session()
+        if self.pending: raise RuntimeError('Wait for the current send to finish')
+        if link in self.remote_busy: raise RuntimeError('MotionBuilder is busy')
+        prepared = self._prepare(animation, synced, link)
+        self._queue(link, prepared, new_scene)
+
+    def send_to_mobu(self, pid=0, new_scene=False, animation=True):
+        self._session()
+        if agent.status() not in {'ONLINE', 'CONNECTED'}: raise RuntimeError('Go Online first')
+        if self.pending: raise RuntimeError('Wait for the current send to finish')
+        targets = agent.targets
+        if not pid and len(targets) > 1: raise RuntimeError('Choose the target MotionBuilder process')
+        if not pid and targets: pid = targets[0]['pid']
+        peer = next((p for p in agent.peers if p['pid'] == pid), None)
+        if peer:
+            self.send(peer['link'], new_scene, animation)
+            return
+        # Capture selection and FBX now; changing selection during Mobu startup
+        # must not change the contents of this send request.
+        prepared = self._prepare(animation)
+        if not pid: pid = agent.launch_mobu().pid
+        request = agent.connect(pid)
+        self.pending = {'phase': 'CONNECT', 'path': request, 'link': None, 'busy': False,
+                        'started': time.monotonic(), 'prepared': prepared, 'new_scene': new_scene}
+        self.error = ''; self.message = f'Connecting to MotionBuilder PID {pid}...'
+
+sync = Sync()

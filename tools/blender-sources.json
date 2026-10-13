@@ -1,0 +1,44 @@
+{
+  "Blender_Send2": {
+    "destination": "Blender/Saint2Mobu",
+    "files": [
+      "blender_send2/__init__.py",
+      "blender_send2/agent.py",
+      "blender_send2/agent_worker.py",
+      "blender_send2/bin/Send2MobuHost.exe",
+      "blender_send2/fbx_io.py",
+      "blender_send2/registration.py",
+      "blender_send2/sync.py",
+      "docs/validation-0.4.0.md",
+      "probe/NativeHost.cs",
+      "probe/Send2Probe.cs",
+      "tests/agent_lifecycle.py",
+      "tests/blender_first_blender.py",
+      "tests/blender_first_mobu.py",
+      "tests/blender_smoke.py",
+      "tests/export_paths.py",
+      "tests/first_send_probe.py",
+      "tests/first_send_probe_mobu.py",
+      "tests/native_sync_blender.py",
+      "tests/native_sync_mobu.py",
+      "tests/rig_roundtrip.py",
+      "tools/build.py",
+      "tools/build_native.ps1",
+      "tools/connect_probe.py",
+      "tools/disasm_synhub.py",
+      "tools/inspect_synhub.py",
+      "tools/launch_probe.ps1",
+      "tools/native_pair.py",
+      "tools/native_probe.py",
+      "tools/receive_probe.py"
+    ]
+  },
+  "Blender_LiveLink": {
+    "destination": "Blender/BlenderLiveLink",
+    "files": [
+      "saintmocap_livelink_receiver/__init__.py",
+      "saintmocap_livelink_receiver/protocol.py",
+      "saintmocap_livelink_receiver/runtime.py"
+    ]
+  }
+}

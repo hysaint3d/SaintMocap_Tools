@@ -35,7 +35,7 @@ retargeting.
 
 ## Install
 
-1. Download [SaintMocap_LiveLink_Receiver-0.5.3.zip](SaintMocap_LiveLink_Receiver-0.5.3.zip?raw=true). To build from source, run `python tools/build.py`.
+1. Download [SaintMocap_LiveLink_Receiver-0.5.4.zip](SaintMocap_LiveLink_Receiver-0.5.4.zip?raw=true). To build from source, run `python tools/build.py`.
 2. In Blender 5.2 LTS, open **Edit > Preferences > Add-ons** and install the ZIP.
 3. Enable **SaintMocap Live Link Receiver**.
 4. Open **3D Viewport > Sidebar > Saint Livelink**.
@@ -69,3 +69,36 @@ Live Link data is interpreted in Unreal's left-handed Z-up space. The add-on con
 it to Blender's right-handed Z-up space, then applies
 the motion delta relative to a captured source reference pose and the target
 armature's own rest pose.
+
+
+## 0.5.4 stability update
+
+- Character selections are stored by subject name, so newly discovered subjects do
+  not redirect existing character mappings. For files saved by 0.5.3, verify each
+  Subject once after discovering all characters, then save the file again.
+- Only the newest queued frame per subject is retained; the receive queue has a
+  256-event limit while Blender is busy.
+- If no frame arrives for two seconds, the mapping waits for live frames and pauses
+  key insertion. Recording resumes when frames return. A paused sender may also
+  appear interrupted if its plugin stops sending frames.
+- Stop clears pending frames and unregisters the Blender timer. Failed startup
+  closes sockets; stopped network threads finish before reconnecting.
+- UDP messages addressed to another receiver are ignored.
+
+## Automated health check
+
+Run in a separate Blender process; the test creates synthetic skeletons and uses
+an ephemeral localhost UDP port, leaving the default receiver port alone:
+
+```powershell
+& 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe' --background --factory-startup --python-exit-code 1 --python tests/healthcheck.py
+```
+
+The 14 checks cover CBOR, segmented packets, recipient routing, real localhost UDP,
+socket cleanup, namespaces, calibration, root motion, skeleton validation,
+multi-character selection, saving/reopening a blend file, layered Action recording,
+stream interruption, bounded buffering and reconnect cleanup. The script prints
+the temporary JSON report path and exits with an error if a check fails.
+These tests do not replace an end-to-end test with a real MotionBuilder provider.
+
+The existing 0.5.3 Experimental Beta 1 release now contains add-on 0.5.4. Its release tag and asset filename remain unchanged; use the ZIP asset rather than the automatically generated source archive.

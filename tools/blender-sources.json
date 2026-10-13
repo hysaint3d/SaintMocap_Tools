@@ -44,7 +44,8 @@
     "files": [
       "saintmocap_livelink_receiver/__init__.py",
       "saintmocap_livelink_receiver/protocol.py",
-      "saintmocap_livelink_receiver/runtime.py"
+      "saintmocap_livelink_receiver/runtime.py",
+      "tests/healthcheck.py"
     ]
   }
 }

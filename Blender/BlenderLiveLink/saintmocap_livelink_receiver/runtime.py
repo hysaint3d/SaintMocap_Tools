@@ -20,7 +20,7 @@ FRAME_ASSETS = {"LiveLinkAnimationFrameData"}
 class ReceiverRuntime:
     def __init__(self):
         self.client = None
-        self.events = deque()
+        self.events = deque(maxlen=256)
         self.event_lock = threading.Lock()
         self.subjects = {}
         self.latest_frames = {}
@@ -32,6 +32,8 @@ class ReceiverRuntime:
         self.logs = deque(maxlen=40)
         self.timer_registered = False
         self.recordings = {}
+        # Keep one bound-method object: Blender timers identify callbacks by identity.
+        self._timer_callback = self.tick
 
     @property
     def running(self):
@@ -50,6 +52,12 @@ class ReceiverRuntime:
         if not subject:
             return
         with self.event_lock:
+            if message.asset in FRAME_ASSETS:
+                for previous in reversed(self.events):
+                    if previous[0] in FRAME_ASSETS and previous[1] == subject:
+                        self.events.remove(previous)
+                        self.dropped_frames[subject] = self.dropped_frames.get(subject, 0) + 1
+                        break
             self.events.append((message.asset, subject, message.body, message.cbor_endian, message.message_format))
 
     def start(self, local_ip, local_port):
@@ -63,8 +71,8 @@ class ReceiverRuntime:
         self.last_error = ""
         self.client = LiveLinkClient(local_ip, local_port, self.on_message, self.log)
         self.client.start()
-        if not self.timer_registered:
-            bpy.app.timers.register(self.tick, first_interval=0.02, persistent=True)
+        if not bpy.app.timers.is_registered(self._timer_callback):
+            bpy.app.timers.register(self._timer_callback, first_interval=0.02, persistent=True)
             self.timer_registered = True
 
     def stop(self):
@@ -72,6 +80,15 @@ class ReceiverRuntime:
             self.client.stop()
         self.client = None
         self.recordings.clear()
+        with self.event_lock:
+            self.events.clear()
+        if bpy.app.timers.is_registered(self._timer_callback):
+            bpy.app.timers.unregister(self._timer_callback)
+        self.timer_registered = False
+
+    def _frame_is_fresh(self, subject):
+        received = self.debug_snapshots.get(subject, {}).get("received_at")
+        return received is not None and time.monotonic() - received <= 2.0
 
     @staticmethod
     def _mapping_key(mapping):
@@ -92,6 +109,8 @@ class ReceiverRuntime:
             raise ValueError("Action recording currently supports Direct Armature mode only")
         if not self.running:
             raise RuntimeError("Start the Live Link receiver before recording")
+        if not mapping.enabled or not self._frame_is_fresh(mapping.subject):
+            raise RuntimeError("Wait for a live animation frame before recording")
         armature = mapping.target_armature
         if not armature or armature.type != "ARMATURE":
             raise ValueError("Select a target armature")
@@ -100,6 +119,9 @@ class ReceiverRuntime:
         key = self._mapping_key(mapping)
         if key in self.recordings:
             raise RuntimeError("This character mapping is already recording")
+        self._apply_mapping(mapping)
+        if mapping.status != "Streaming":
+            raise RuntimeError("Resolve the character mapping before recording")
         base_name = mapping.recording_action_name.strip() or f"{armature.name}_LiveLink"
         action = bpy.data.actions.new(name=base_name)
         armature.animation_data_create()
@@ -107,6 +129,7 @@ class ReceiverRuntime:
         self.recordings[key] = {
             "action": action,
             "armature": armature,
+            "subject": mapping.subject,
             "frames": set(),
             "last_frame": None,
             "started_playback": False,
@@ -134,6 +157,10 @@ class ReceiverRuntime:
     def _record_mapping(self, scene, mapping):
         state = self.recordings.get(self._mapping_key(mapping))
         if not state or mapping.status != "Streaming":
+            return
+        if mapping.target_armature != state["armature"] or mapping.subject != state["subject"]:
+            self.recordings.pop(self._mapping_key(mapping), None)
+            self.log("Recording stopped because the character mapping changed")
             return
         frame = int(scene.frame_current)
         if state["last_frame"] == frame:
@@ -377,6 +404,9 @@ class ReceiverRuntime:
         frame = self.latest_frames.get(subject)
         if not definition or not frame:
             props.status = "Waiting for source data"
+            return
+        if not self._frame_is_fresh(subject):
+            props.status = "Waiting for live frames (source interrupted)"
             return
         count = min(len(definition["bones"]), len(frame))
         target_mode = getattr(props, "target_mode", "DIRECT")

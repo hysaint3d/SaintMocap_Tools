@@ -471,6 +471,8 @@ class LiveLinkClient:
         recipient = data[1:17]
         sender = data[17:33]
         segment_type = data[33]
+        if recipient not in (ZERO_GUID, self.node_guid):
+            return
         if sender == self.node_guid:
             return
         if segment_type == SegmentType.PING:
@@ -496,6 +498,8 @@ class LiveLinkClient:
             try:
                 data, addr = sock.recvfrom(65535)
                 self._process_datagram(data, addr)
+            except socket.timeout:
+                continue
             except OSError:
                 break
             except Exception as exc:
@@ -519,7 +523,15 @@ class LiveLinkClient:
     def start(self):
         if self.running:
             return
+        try:
+            self._start()
+        except Exception:
+            self.stop()
+            raise
+
+    def _start(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.sock.settimeout(0.2)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         bind_ip = self.local_ip if self.local_ip != "0.0.0.0" else ""
         self.sock.bind((bind_ip, self.local_port))
@@ -528,6 +540,7 @@ class LiveLinkClient:
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip))
 
         self.mcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.mcast_sock.settimeout(0.2)
         self.mcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.mcast_sock.bind(("", MCAST_PORT))
         interface = socket.inet_aton(self.local_ip if self.local_ip != "0.0.0.0" else "0.0.0.0")
@@ -555,4 +568,9 @@ class LiveLinkClient:
                 except OSError:
                     pass
         self.sock = self.mcast_sock = None
+        for thread in self._threads:
+            if thread is not threading.current_thread():
+                thread.join(timeout=0.4)
+        self._threads.clear()
         self.providers.clear()
+        self._reassembler.pending.clear()

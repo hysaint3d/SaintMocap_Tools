@@ -1,9 +1,9 @@
 bl_info = {
     "name": "SaintMocap Live Link Receiver",
     "author": "SaintMocap / Codex",
-    "version": (0, 5, 3),
+    "version": (0, 5, 4),
     "blender": (5, 2, 0),
-    "location": "3D Viewport > Sidebar > SaintMocap",
+    "location": "3D Viewport > Sidebar > Saint Livelink",
     "description": "Receive MotionBuilder Live Link animation into an existing matching Blender armature",
     "category": "Animation",
 }
@@ -19,9 +19,38 @@ def _armature_poll(_self, obj):
     return obj is not None and obj.type == "ARMATURE"
 
 
+_subject_enum_ids = {}
+_subject_enum_cache = {}
+_root_enum_cache = {}
+
+
 def _subject_items(_self, _context):
-    items = [(name, name, f"Live Link animation subject: {name}") for name in sorted(RUNTIME.subjects)]
-    return items or [("", "Waiting for subject…", "Start the receiver and enable streaming in MotionBuilder")]
+    names = tuple(sorted(RUNTIME.subjects))
+    if names not in _subject_enum_cache:
+        items = [("", "Waiting for subject…", "Select a streaming subject", 0)]
+        for name in names:
+            number = _subject_enum_ids.setdefault(name, len(_subject_enum_ids) + 1)
+            items.append((name, name, f"Live Link animation subject: {name}", number))
+        # Retain callback strings for Blender's dynamic EnumProperty lifetime.
+        _subject_enum_cache[names] = items
+    return _subject_enum_cache[names]
+
+
+def _get_subject(self):
+    _subject_items(self, None)
+    name = self.get("_subject_name")
+    if name is None and "subject" in self:
+        # Best-effort migration from the old, positional enum in saved files.
+        names = sorted(RUNTIME.subjects)
+        legacy = self.get("subject")
+        if isinstance(legacy, int) and 0 <= legacy < len(names):
+            name = names[legacy]
+            self["_subject_name"] = name
+    return _subject_enum_ids.get(name, 0) if name in RUNTIME.subjects else 0
+
+
+def _set_subject(self, value):
+    self["_subject_name"] = next((name for name, number in _subject_enum_ids.items() if number == value), "")
 
 
 def _root_motion_source_items(self, _context):
@@ -32,7 +61,8 @@ def _root_motion_source_items(self, _context):
             continue
         display_name = source_name.rsplit(":", 1)[-1]
         items.append((source_name, display_name, f"Preserve translation from {source_name}"))
-    return items
+    key = tuple(items)
+    return _root_enum_cache.setdefault(key, items)
 
 
 class SaintLiveLinkBoneMap(PropertyGroup):
@@ -43,7 +73,7 @@ class SaintLiveLinkBoneMap(PropertyGroup):
 
 class SaintLiveLinkMapping(PropertyGroup):
     enabled: BoolProperty(name="Enabled", default=True)
-    subject: EnumProperty(name="Subject", items=_subject_items)
+    subject: EnumProperty(name="Subject", items=_subject_items, get=_get_subject, set=_set_subject)
     target_armature: PointerProperty(name="Target Armature", type=bpy.types.Object, poll=_armature_poll)
     target_mode: EnumProperty(
         name="Target Mode",

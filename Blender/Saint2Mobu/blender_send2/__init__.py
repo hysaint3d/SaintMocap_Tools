@@ -1,5 +1,5 @@
 bl_info = {'name': 'SaintMocap Send2Mobu', 'author': 'SaintMocap LAB',
-           'version': (0, 4, 0), 'blender': (5, 2, 0), 'category': 'Import-Export'}
+           'version': (0, 4, 3), 'blender': (5, 2, 0), 'category': 'Import-Export'}
 import bpy
 from bpy.props import EnumProperty, BoolProperty
 from .agent import agent
@@ -19,12 +19,19 @@ def target_items(self, context):
         _peer_items.append(_peer_item_cache[key])
     return _peer_items
 
+def update_bone_display(settings, context):
+    from .bone_display import apply
+    if context and context.scene:
+        apply([obj for obj in context.scene.objects if obj.get('_send2_source_name')], settings.point_bones)
+
 class SEND2_Settings(bpy.types.PropertyGroup):
     product: EnumProperty(name='Emulate', items=[('Maya','Maya',''), ('3ds Max','3ds Max','')])
     year: EnumProperty(name='Emulated Version', items=[(str(y),str(y),'') for y in range(2023,2028)], default='2026')
     mobu_year: EnumProperty(name='MotionBuilder', items=[(str(y),str(y),'Installed Mobu version') for y in range(2023,2028)], default='2026')
     target: EnumProperty(name='Target Mobu', items=target_items)
     animation: BoolProperty(name='Export Animation', default=True)
+    point_bones: BoolProperty(name='Point Bones to Children', default=True, update=update_bone_display,
+        description='Use child-directed display shapes while preserving original bone axes and animation')
 
 class SEND2_OT_online(bpy.types.Operator):
     bl_idname = 'send2.online'
@@ -88,7 +95,7 @@ class SEND2_OT_sync(bpy.types.Operator):
 class SEND2_OT_send(bpy.types.Operator):
     bl_idname = 'send2.send_to_mobu'
     bl_label = 'Send to Mobu'
-    bl_description = 'Send selected objects to Mobu; connect or launch the selected version automatically'
+    bl_description = 'Send selected objects and all meshes bound to selected armatures; connect or launch Mobu'
     new_scene: BoolProperty(default=False)
     def execute(self, context):
         try:
@@ -158,11 +165,13 @@ class SEND2_PT_panel(bpy.types.Panel):
             layout.label(text=sync.error, icon='ERROR')
             if sync.failed: layout.operator('send2.retry_receive')
         layout.prop(s,'animation')
+        layout.prop(s,'point_bones')
 
 classes=(SEND2_Settings,SEND2_OT_online,SEND2_OT_offline,SEND2_OT_launch,SEND2_OT_sync,SEND2_OT_send,SEND2_OT_retry,SEND2_PT_panel)
 @persistent
 def before_load(unused):
-    agent.stop(); sync.reset()
+    if not sync.internal_new_file:
+        agent.stop(); sync.reset()
 
 def register():
     for cls in classes: bpy.utils.register_class(cls)

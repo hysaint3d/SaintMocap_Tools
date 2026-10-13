@@ -40,6 +40,7 @@ class Agent:
         self.environment = None
         self.mobu = None
         self.registration = None
+        self._last_status = None
 
     def start(self, product, year, mobu_year='2026', register_system=True):
         if self.process is not None and self.process.poll() is None:
@@ -125,13 +126,21 @@ class Agent:
             return 'ERROR'
         try:
             state = json.loads((self.directory / 'status.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError, KeyError):
+            # Windows may briefly deny a read while the host atomically replaces
+            # its heartbeat file. A fresh verified snapshot is still valid.
+            state = self._last_status
+            if state is None:
+                return 'STARTING'
+        try:
             if state['pid'] != self.process.pid or time.time() - state['heartbeat'] > 5:
                 self.peers = []; self.targets = []
                 return 'UNRESPONSIVE'
             self.peers = state['peers']
             self.targets = state.get('targets', [])
+            self._last_status = state
             return 'CONNECTED' if self.peers else 'ONLINE'
-        except (OSError, ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             return 'STARTING'
 
     def connect(self, pid):
@@ -162,7 +171,7 @@ class Agent:
                 except subprocess.TimeoutExpired:
                     self.process.terminate(); self.process.wait(timeout=3)
         finally:
-            self.process = None; self.identity = None; self.peers = []; self.targets = []
+            self.process = None; self.identity = None; self.peers = []; self.targets = []; self._last_status = None
             if self.lock:
                 self.lock.close(); self.lock = None
             # Remove only this instance's own registration, never Autodesk's files.

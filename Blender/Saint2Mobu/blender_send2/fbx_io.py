@@ -2,6 +2,7 @@
 from pathlib import Path
 import bpy
 import tempfile
+from .bone_display import apply as apply_bone_display
 
 _default_export_path = None
 
@@ -50,7 +51,7 @@ def _copy_animation(src, dst):
             ad.action_slot = src.animation_data.action_slot
 
 
-def import_fbx(path, update=False, scope=None):
+def import_fbx(path, update=False, scope=None, point_bones=True):
     """Merge FBX objects by exact source name, including meshes, FK rigs and actions.
 
     Unmentioned objects are retained (Send To may contain only a selection).
@@ -171,3 +172,4 @@ def import_fbx(path, update=False, scope=None):
             if obj.name in bpy.context.view_layer.objects: obj.select_set(True)
         bpy.context.view_layer.objects.active = active
         if not committed: render.fps, render.fps_base = original_fps
+        else: apply_bone_display(list(mapping.values()), point_bones)

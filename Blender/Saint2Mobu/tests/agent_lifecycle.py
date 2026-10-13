@@ -18,6 +18,12 @@ try:
     assert bpy.ops.send2.online()=={'FINISHED'}
     wait_ready()
     assert agent.identity==('Maya','2026')
+    from unittest.mock import patch
+    with patch('pathlib.Path.read_text', side_effect=PermissionError('temporary replacement lock')):
+        assert agent.status()=='ONLINE'
+        agent._last_status['heartbeat']=time.time()-6
+        assert agent.status()=='UNRESPONSIVE'
+    wait_ready()
     first=agent.process
     agent.start('Maya','2026')
     assert agent.process is first

@@ -8,7 +8,7 @@ from blender_send2.agent import agent
 from blender_send2.sync import sync
 if os.environ.get('SEND2_TEST_INSTALLED')=='1':
  assert pathlib.Path(blender_send2.__file__).parent.parent.name=='addons'
- assert blender_send2.bl_info['version']==(0,4,0)
+ assert blender_send2.bl_info['version']==(0,4,3)
  print('INSTALLED_ADDON',blender_send2.__file__,flush=True)
 blender_send2.register()
 if os.environ.get('SEND2_TEST_SYSTEM')!='1':agent._register_system=lambda *args:None
@@ -32,6 +32,8 @@ try:
   blender_send2.refresh_status()
   if sync.error:raise AssertionError(sync.error)
   if stage==0 and sync.last_link is not None:
+   assert not bpy.data.filepath and len(bpy.data.scenes)==1
+   assert unrelated_pointer not in {o.as_pointer() for o in bpy.data.objects}
    collection=sync.collection(sync.last_link)
    print('RECEIVED',[(o.name,o.type) for o in collection.objects],flush=True)
    mesh=next(o for o in collection.objects if o.get('_send2_source_name')=='SyncSkin')
@@ -39,6 +41,10 @@ try:
    assert mesh.modifiers[0].object==rig
    assert mesh.vertex_groups and all(v.groups for v in mesh.data.vertices)
    identity={o:o.as_pointer() for o in collection.objects}
+   mesh.name='SyncedSkinUserName'
+   unrelated=bpy.data.objects.new('SyncSkin',bpy.data.meshes.new('Unrelated'))
+   bpy.context.scene.collection.objects.link(unrelated)
+   unrelated_pointer=unrelated.as_pointer()
    mesh.data.vertices[0].co.x += 0.2
    lengths=sorted(v.co.length for v in mesh.data.vertices)
    bpy.context.scene.frame_start=1;bpy.context.scene.frame_end=10
@@ -52,7 +58,9 @@ try:
    ready=time.monotonic()+2
    while agent.status()!='CONNECTED' and time.monotonic()<ready:time.sleep(.05)
    bpy.context.scene.send2.target=str(mobu.pid)
-   assert bpy.ops.send2.sync(synced=True)=={'FINISHED'},sync.error
+   bpy.ops.object.select_all(action='DESELECT');rig.select_set(True)
+   bpy.context.view_layer.objects.active=rig
+   assert bpy.ops.send2.send_to_mobu()=={'FINISHED'},sync.error
    stage=1
   elif stage==1 and sync.pending is None:
    stage=2;print('NATIVE_COMPLETION',sync.message,flush=True)

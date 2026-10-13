@@ -1,6 +1,6 @@
 # SaintMocap Blender Tools
 
-- **[Saint2Mobu](Saint2Mobu/)**: FBX model, rig and animation transfers with MotionBuilder, including return updates. Current build: **0.4.0 Beta**. Blender add-on name: **SaintMocap Send2Mobu**.
+- **[Saint2Mobu](Saint2Mobu/)**: FBX model, rig and animation transfers with MotionBuilder, including return updates. Current build: **0.4.3**, delivered through the existing **0.4.0 Beta 1** release. Blender add-on name: **SaintMocap Send2Mobu**.
 - **[SaintMocap Live Link Receiver](BlenderLiveLink/)**: real-time MotionBuilder animation reception into existing Blender armatures. Current build: **0.5.3 Experimental**.
 
 Each add-on can be installed independently. See its README for installation and operation. Install the individual add-on ZIP without extracting it first.

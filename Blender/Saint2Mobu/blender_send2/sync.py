@@ -20,6 +20,7 @@ class Sync:
         self.collections = {}
         self.last_link = None
         self.failed = None
+        self.internal_new_file = False
 
     def reset(self):
         self.__init__()
@@ -37,6 +38,25 @@ class Sync:
             return name if name.name in bpy.data.collections else None
         except ReferenceError:
             return None
+
+    def _new_file(self):
+        settings = bpy.context.scene.send2
+        values = {key: getattr(settings, key) for key in ('product', 'year', 'mobu_year', 'animation', 'point_bones')}
+        if agent.identity:
+            values['product'], values['year'] = agent.identity
+        self.internal_new_file = True
+        try:
+            result = bpy.ops.wm.read_homefile(use_empty=True)
+            if 'FINISHED' not in result:
+                raise RuntimeError('Blender could not create a new file')
+        finally:
+            self.internal_new_file = False
+        self.collections.clear()
+        self.last_link = None
+        self.failed = None
+        self.pending = None
+        for key, value in values.items():
+            setattr(bpy.context.scene.send2, key, value)
 
     def receive(self, path):
         request = json.loads(path.read_text(encoding='utf-8-sig'))
@@ -73,35 +93,77 @@ class Sync:
             pending = path.with_suffix('.tmp')
             pending.write_text(json.dumps(request), encoding='utf-8')
             pending.replace(path)
+        # A UI file load invalidates the current timer's window/context.
+        # Journal the phase and return; import from a fresh context next tick.
+        if root.get('TargetScene') == 'New' and not request.get('new_file_started'):
+            self._state(link, 'Busy')
+            self.message = 'Opening a new Blender file...'
+            try:
+                self._new_file()
+                request['new_file_started'] = True
+                pending = path.with_suffix('.tmp')
+                pending.write_text(json.dumps(request), encoding='utf-8')
+                pending.replace(path)
+            except Exception:
+                self._state(link, 'Ready')
+                raise
+            self.error = ''
+            self.message = 'New file ready; importing received FBX...'
+            return False
+        windows = list(bpy.context.window_manager.windows)
+        window = bpy.context.window if bpy.context.window in windows else next(iter(windows), None)
+        if window is None or window.screen is None:
+            return False
+        area = next((a for a in window.screen.areas if a.type == 'VIEW_3D'), None)
+        if area is None:
+            area = next(iter(window.screen.areas), None)
+        if area is None:
+            return False
+        region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+        override = {'window': window, 'screen': window.screen, 'area': area}
+        if region is not None:
+            override['region'] = region
         self._state(link, 'Busy')
         try:
-            collection = self.collection(link)
-            new = root.get('TargetScene') == 'New' or collection is None
-            scope = list(collection.all_objects) if collection is not None else []
-            # New scenes arrive in a dedicated collection; the user's scene is retained.
-            update = not new and root.get('ObjectAction') == 'Update'
-            objects = import_fbx(cached, update=update, scope=scope)
-            if new:
-                collection = bpy.data.collections.new('Send2Mobu - ' + time.strftime('%H%M%S'))
-                bpy.context.scene.collection.children.link(collection)
-                self.collections[link] = collection
-            for obj in objects:
-                if obj.name not in collection.objects:
-                    collection.objects.link(obj)
-                    if obj not in scope:
-                        for owner in list(obj.users_collection):
-                            if owner != collection: owner.objects.unlink(obj)
-            collection['_send2_source_pid'] = next((p['pid'] for p in agent.peers if p['link'] == link), 0)
-            actions = [o.animation_data.action for o in objects if o.animation_data and o.animation_data.action]
-            if new and actions:
-                bpy.context.scene.frame_start = math.floor(min(a.frame_range[0] for a in actions))
-                bpy.context.scene.frame_end = math.ceil(max(a.frame_range[1] for a in actions))
-            self.last_link = link
-            self.message = f'Received {len(objects)} objects from MotionBuilder'
-            self.error = ''
+            with bpy.context.temp_override(**override):
+                self._receive_cached(link, root, cached)
         finally:
             try: self._state(link, 'Ready')
             except RuntimeError: self.error = 'Receive finished; MotionBuilder connection closed'
+        return True
+
+    def _receive_cached(self, link, root, cached):
+        collection = self.collection(link)
+        new = root.get('TargetScene') == 'New' or collection is None
+        scope = list(collection.all_objects) if collection is not None else []
+        update = not new and root.get('ObjectAction') == 'Update'
+        objects = import_fbx(cached, update=update, scope=scope, point_bones=bpy.context.scene.send2.point_bones)
+        if not objects:
+            raise RuntimeError('The received FBX contains no importable objects')
+        if new:
+            collection = bpy.data.collections.new('Send2Mobu - ' + time.strftime('%H%M%S'))
+            bpy.context.scene.collection.children.link(collection)
+            self.collections[link] = collection
+        for obj in objects:
+            if obj.name not in collection.objects:
+                collection.objects.link(obj)
+                if obj not in scope:
+                    for owner in list(obj.users_collection):
+                        if owner != collection: owner.objects.unlink(obj)
+        collection['_send2_source_pid'] = next((p['pid'] for p in agent.peers if p['link'] == link), 0)
+        actions = [o.animation_data.action for o in objects if o.animation_data and o.animation_data.action]
+        if new and actions:
+            bpy.context.scene.frame_start = math.floor(min(a.frame_range[0] for a in actions))
+            bpy.context.scene.frame_end = math.ceil(max(a.frame_range[1] for a in actions))
+        if new:
+            for selected in bpy.context.selected_objects:
+                selected.select_set(False)
+            for obj in objects:
+                obj.select_set(True)
+            bpy.context.view_layer.objects.active = next((o for o in objects if o.type == 'ARMATURE'), objects[0])
+        self.last_link = link
+        self.message = f'Received {len(objects)} objects from MotionBuilder'
+        self.error = ''
 
     def tick(self):
         state = agent.status()
@@ -134,12 +196,16 @@ class Sync:
             return
         for path in sorted(agent.directory.glob('in-*.json'))[:8]:
             try:
-                self.receive(path)
+                if self.receive(path) is False:
+                    return
                 path.rename(str(path) + '.done')
             except Exception as exc:
                 self.error = str(exc)
                 self.failed = Path(str(path) + '.failed')
                 path.rename(self.failed)
+                import traceback
+                with (agent.directory / 'receive-errors.log').open('a', encoding='utf-8') as log:
+                    log.write(time.strftime('%Y-%m-%d %H:%M:%S') + '\n' + traceback.format_exc() + '\n')
                 print('SaintMocap Send2Mobu receive failed:', exc)
 
     def _session(self):
@@ -155,9 +221,17 @@ class Sync:
         objects = list(collection.all_objects) if synced else list(bpy.context.selected_objects)
         if not objects:
             raise RuntimeError('Select objects to send, or receive a synced collection first')
-        # Include parents and skin rigs so a selected mesh exports a complete hierarchy.
+        # Explicitly selected armatures include all meshes bound to them in
+        # this scene, including meshes parented elsewhere. Mesh-only selections
+        # still include their rig/parents without pulling unrelated sibling skins.
+        selected_rigs = {obj for obj in objects if obj.type == 'ARMATURE'}
         expanded = set(objects)
-        queue = list(objects)
+        if selected_rigs:
+            expanded.update(obj for obj in bpy.context.scene.objects
+                            if obj.type == 'MESH' and any(
+                                modifier.type == 'ARMATURE' and modifier.object in selected_rigs
+                                for modifier in obj.modifiers))
+        queue = list(expanded)
         while queue:
             obj = queue.pop()
             dependencies = [obj.parent] + [m.object for m in obj.modifiers if m.type == 'ARMATURE']
@@ -165,8 +239,10 @@ class Sync:
                 if dependency is not None and dependency not in expanded:
                     expanded.add(dependency); queue.append(dependency)
         expanded = list(expanded)
-        if any(obj.name not in bpy.context.view_layer.objects or obj.hide_get() or obj.hide_select for obj in expanded):
-            raise RuntimeError('Unhide and enable selection for the objects/rigs being sent')
+        unavailable = [obj.name for obj in expanded
+                       if obj.name not in bpy.context.view_layer.objects or obj.hide_get() or obj.hide_select]
+        if unavailable:
+            raise RuntimeError('Unhide and enable selection for: ' + ', '.join(sorted(unavailable)))
         selected = list(bpy.context.selected_objects)
         active = bpy.context.view_layer.objects.active
         names = {obj: obj.name for obj in bpy.data.objects}
